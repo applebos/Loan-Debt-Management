@@ -1,40 +1,101 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# 🧠 지능형 대출 이자 계산기
 
-## Getting Started
+**다양한 상환 방식을 비교하고, AI 기반으로 더 나은 대출 관리를 제안받으세요.**
 
-First, run the development server:
+---
+
+## 📋 프로젝트 개요 (Overview)
+
+이 프로젝트는 단순한 이자 계산을 넘어, 복잡한 대출 시나리오를 시뮬레이션하고 사용자에게 재정적으로 더 나은 선택을 할 수 있도록 돕는 것을 목표로 하는 차세대 대출 이자 계산기입니다.
+
+사용자는 기본 대출 정보(원금, 금리, 기간)만으로 **원리금 균등**, **원금 균등**, **만기일시** 상환 방식에 따른 총 이자 비용과 월 상환금을 즉시 비교할 수 있습니다. 나아가, **거치기간**, **중도상환**, **금리 변동**과 같은 실제 대출 과정에서 발생할 수 있는 복합적인 변수들을 모두 반영하여 정교한 상환 계획을 시뮬레이션할 수 있습니다.
+
+이 프로젝트의 핵심은, 사용자의 대출 조건이 현재 시장 금리 대비 높은 편이라고 판단될 경우, **더 낮은 금리로 갈아탈 수 있는 대환대출을 지능적으로 제안**하여 잠재적인 금융 비용 절감 효과를 알려주는 데 있습니다.
+
+
+## ✨ 주요 기능 (Key Features)
+
+- **🔢 3가지 상환 방식 동시 계산**
+  - 원리금 균등 분할상환
+  - 원금 균등 분할상환
+  - 만기일시 상환
+  - 각 방식의 총 이자, 총상환액을 테이블로 한눈에 비교하여 최적의 상환 전략 수립을 지원합니다.
+
+- ** phức tạp 시나리오 시뮬레이션**
+  - **거치기간 설정:** 대출 초기, 이자만 납부하는 기간을 설정할 수 있습니다.
+  - **중도상환 및 금리 변동:** 특정 회차에 원금을 추가 상환하거나, 금리가 변경되는 경우를 시나리오에 동적으로 추가하여 이후 상환 계획이 어떻게 바뀌는지 즉시 확인할 수 있습니다. `+`/`-` 버튼으로 여러 개의 이벤트를 자유롭게 추가/제거할 수 있습니다.
+
+- **🤖 지능형 대환대출 제안**
+  - 현재 금리가 제1금융권 평균 금리보다 높을 경우, 1년 뒤 대환하는 것을 가정하여 **예상 절감액**을 계산하여 보여줍니다.
+  - 단순히 절감액만 보여주는 것을 넘어, 금리 수준에 따라 "금리가 높은 편이에요" 또는 "이자를 더 아낄 기회가 있어요" 와 같이 개인화된 메시지를 제공합니다.
+  - 카카오뱅크, 토스 등 주요 대환대출 플랫폼으로 바로 이동할 수 있는 링크를 제공하여 사용자 편의성을 극대화했습니다.
+
+- **💻 인터랙티브하고 세련된 UI/UX**
+  - **Next.js App Router**와 **React Server Components**를 기반으로 빠르고 효율적인 렌더링을 구현했습니다.
+  - **Tailwind CSS**를 활용하여 반응형 웹 디자인과 모던한 UI를 구축했습니다.
+  - 복잡한 입력 폼을 옵션 체크박스(거치기간, 중도상환)를 통해 단계적으로 보여주어 사용자의 피로도를 낮췄습니다.
+  - 계산 결과, 상세 상환 스케줄 등을 토글(Toggle) 방식으로 필요할 때만 볼 수 있도록 하여 화면을 깔끔하게 유지합니다.
+  - **Zod**를 활용한 강력한 입력값 유효성 검사를 통해 발생 가능한 오류를 사전에 방지하고 사용자에게 명확한 피드백을 제공합니다.
+
+
+## 🛠️ 사용 기술 (Tech Stack)
+
+- **Framework**: Next.js (v14+)
+- **Language**: TypeScript
+- **UI**: React, Tailwind CSS
+- **State Management**: React `useActionState` (for Server Actions)
+- **Validation**: Zod
+
+
+## 📁 프로젝트 구조 (Project Structure)
+
+```
+.
+├── app/
+│   ├── layout.tsx         # 루트 레이아웃
+│   ├── page.tsx           # 메인 페이지 (계산기 컴포넌트 렌더링)
+│   ├── components/
+│   │   └── LoanPlanner.tsx  # 핵심 UI 컴포넌트
+│   └── lib/
+│       └── loanLogic.ts     # 모든 대출 계산 로직 (서버)
+├── public/                # 정적 에셋
+├── blueprint.md           # 프로젝트 기획 및 설계 문서
+└── README.md              # 프로젝트 소개 문서
+```
+- **/app/lib/loanLogic.ts**: 계산 로직을 서버 사이드에 집중시켜 보안을 강화하고, 복잡한 비즈니스 로직을 UI와 완벽하게 분리했습니다.
+- **/app/components/LoanPlanner.tsx**: 메인 UI를 여러 개의 하위 컴포넌트(InfoTabs, LoanForm, ResultsDisplay 등)로 분리하여 코드의 가독성과 재사용성, 유지보수성을 높였습니다.
+
+
+## 🚀 시작하기 (Getting Started)
+
+### 1. 전제 조건 (Prerequisites)
+
+- Node.js (v18.x 이상 권장)
+- npm 또는 yarn
+
+### 2. 설치 (Installation)
+
+```bash
+# 1. 프로젝트 클론
+git clone https://github.com/[YOUR_USERNAME]/[REPOSITORY_NAME].git
+
+# 2. 프로젝트 폴더로 이동
+cd [REPOSITORY_NAME]
+
+# 3. 의존성 패키지 설치
+npm install
+```
+
+### 3. 개발 서버 실행 (Running the App)
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
+브라우저에서 `http://localhost:3000`으로 접속하세요.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+## 🌟 향후 계획 (Future Plans)
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
-
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
-
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+- **[고도화]** 외부 금융 API와 연동하여 최신 시장 금리를 실시간으로 반영한 대환대출 분석 제공
+- **[기능 확장]** 체증식 분할상환 등 더 다양한 대출 상환 방식 지원
+- **[시각화]** 상환 방식별 비용 차이를 그래프 형태로 시각화하여 직관적인 비교 기능 제공
