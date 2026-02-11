@@ -30,11 +30,21 @@ export interface CalculationResult {
   schedule: ScheduleEntry[];
 }
 
+export interface RefinanceInfo {
+  potentialSavings: number;
+  originalTotalInterest: number;
+  refinancedTotalInterest: number;
+}
+
 export interface AllScenariosResult {
   results?: {
     equalInstallments: CalculationResult;
     equalPrincipal: CalculationResult;
     bullet: CalculationResult;
+    refinance?: RefinanceInfo;
+    inputs: {
+        annualRate: number;
+    }
   };
   errors?: any;
 }
@@ -81,7 +91,6 @@ const calculateEqualInstallments = (data: z.infer<typeof LoanSchema>): Calculati
         let rateChanged = false;
         const event = sortedRepayments.find(r => r.round === month);
 
-        // 이벤트 적용: 당월 상환 후, 중도상환/금리변경 적용 후, 재계산
         if (event) {
             if (event.amount) {
                 principalRepaidEarly = Math.min(event.amount, remainingPrincipal - principalPayment);
@@ -91,7 +100,6 @@ const calculateEqualInstallments = (data: z.infer<typeof LoanSchema>): Calculati
             }
         }
 
-        // 마지막 회차 보정
         if (month === data.loanTermMonths && (principalPayment + principalRepaidEarly < remainingPrincipal)) {
             principalPayment = remainingPrincipal - principalRepaidEarly;
         }
@@ -113,7 +121,6 @@ const calculateEqualInstallments = (data: z.infer<typeof LoanSchema>): Calculati
              if (rateChanged) {
                 currentAnnualRate = event.newRate!;
              }
-            // --- 재설계 ---
             const monthsLeft = data.loanTermMonths - month;
             const graceLeft = Math.max(0, graceMonths - month);
             paymentMonths = monthsLeft - graceLeft;
@@ -165,7 +172,6 @@ const calculateEqualPrincipal = (data: z.infer<typeof LoanSchema>): CalculationR
             }
         }
 
-        // 마지막 회차 보정
         if (month === data.loanTermMonths && (principalPayment + principalRepaidEarly < remainingPrincipal)) {
             principalPayment = remainingPrincipal - principalRepaidEarly;
         }
@@ -187,7 +193,6 @@ const calculateEqualPrincipal = (data: z.infer<typeof LoanSchema>): CalculationR
             if (rateChanged) {
                 currentAnnualRate = event.newRate!;
             }
-            // --- 재설계 ---
             const monthsLeft = data.loanTermMonths - month;
             const graceLeft = Math.max(0, graceMonths - month);
             paymentMonths = monthsLeft - graceLeft;
@@ -224,11 +229,10 @@ const calculateBulletPayment = (data: z.infer<typeof LoanSchema>): CalculationRe
                 principalRepaidEarly = Math.min(event.amount, remainingPrincipal);
             }
             if (typeof event.newRate === 'number') {
-                currentAnnualrate = event.newRate;
+                currentAnnualRate = event.newRate;
             }
         }
 
-        // 만기 상환
         if (month === data.loanTermMonths) {
             principalPayment = remainingPrincipal - principalRepaidEarly;
         }
@@ -246,7 +250,6 @@ const calculateBulletPayment = (data: z.infer<typeof LoanSchema>): CalculationRe
 
         remainingPrincipal -= (principalPayment + principalRepaidEarly);
         
-        // 금리 변경은 즉시 반영되지만, 재설계는 없음
         if (event && event.newRate) {
             currentAnnualRate = event.newRate;
         }
@@ -255,6 +258,51 @@ const calculateBulletPayment = (data: z.infer<typeof LoanSchema>): CalculationRe
     return { totalInterest, totalPaid: data.principal + totalInterest, schedule };
 };
 
+// --- 대환대출 절약액 계산 ---
+const calculateRefinanceSavings = (originalData: z.infer<typeof LoanSchema>, originalResult: CalculationResult): RefinanceInfo | null => {
+    const REFINANCE_MONTH = 12;
+    // 현실적인 대환 목표 금리: 제1금융권 고신용자 평균 대출금리 기준
+    const TIER_1_AVG_RATE = 3.8; 
+
+    // 1. 현재 금리가 이미 '제1금융권 평균'보다 낮거나 같으면 분석 중단
+    if (originalData.annualRate <= TIER_1_AVG_RATE) {
+        return null;
+    }
+
+    // 2. 대출 기간이 1년 이하이면 분석 중단
+    if (originalData.loanTermMonths <= REFINANCE_MONTH || originalResult.schedule.length <= REFINANCE_MONTH) {
+        return null;
+    }
+
+    // 3. 대환 후 금리는 (현재금리-1%)와 '제1금융권 평균' 중 더 높은(현실적인) 값을 사용
+    const newAnnualRate = Math.max(TIER_1_AVG_RATE, originalData.annualRate - 1.0);
+    
+    // 4. 만약 계산된 새 금리가 현재 금리보다 높거나 같으면 의미 없으므로 중단
+    if (newAnnualRate >= originalData.annualRate) return null;
+
+    const interestPaidSoFar = originalResult.schedule.slice(0, REFINANCE_MONTH).reduce((acc, s) => acc + s.interestPayment, 0);
+    const principalAtRefinance = originalResult.schedule[REFINANCE_MONTH - 1].remainingPrincipal;
+
+    const refinanceLoanData: z.infer<typeof LoanSchema> = {
+        principal: principalAtRefinance,
+        annualRate: newAnnualRate,
+        loanTermMonths: originalData.loanTermMonths - REFINANCE_MONTH,
+        repayments: [],
+        gracePeriodMonths: 0
+    };
+
+    const refinancedPartResult = calculateEqualInstallments(refinanceLoanData);
+    const refinancedTotalInterest = interestPaidSoFar + refinancedPartResult.totalInterest;
+    const potentialSavings = originalResult.totalInterest - refinancedTotalInterest;
+
+    if (potentialSavings <= 0) return null;
+
+    return {
+        potentialSavings,
+        originalTotalInterest: originalResult.totalInterest,
+        refinancedTotalInterest,
+    };
+}
 
 
 // --- Main Server Action ---
@@ -302,7 +350,16 @@ export async function calculateAllLoanScenarios(prevState: any, formData: FormDa
       equalInstallments: calculateEqualInstallments(data),
       equalPrincipal: calculateEqualPrincipal(data),
       bullet: calculateBulletPayment(data),
+      inputs: {
+          annualRate: data.annualRate
+      }
     };
+
+    // --- 대환대출 분석 실행 ---
+    const refinanceInfo = calculateRefinanceSavings(data, results.equalInstallments);
+    if (refinanceInfo) {
+        results.refinance = refinanceInfo;
+    }
 
     return { results };
 
